@@ -2,7 +2,7 @@
   (:require
    [reagent.core :as r]
    [reagent.dom :as d]
-   [propeller-site.propel :as propel]))
+   [propeller-site.propeller :as propel]))
 ; NOTE: Change the problem argument passed to evolve function specified in the run-button
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
