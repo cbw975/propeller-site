@@ -45,7 +45,7 @@ h4 {
   overflow-y:scroll;
   display: flex;
   flex-direction: column-reverse;
-  height: 450px;
+  height: 400px;
 }
 
 .footer {
@@ -66,6 +66,11 @@ input, select {
   text-align: center;
   margin-top: -10px;
   margin-bottom: -10px;
+}
+
+select {
+  vertical-align: -2px;
+  height: 18px;
 }
 
 button {

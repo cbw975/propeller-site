@@ -3,7 +3,7 @@
    [reagent.core :as r]
    [reagent.dom :as d]
    [propeller-site.propeller :as propel]))
-; NOTE: Change the problem argument passed to evolve function specified in the run-button
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;  STYLES & PARAMETERS  ;;
@@ -11,6 +11,7 @@
 
 (def param-input-style {:border "#555555" :font-size "15px" :height "15px"
                         :text-align "center" :line-height "1px" :width "60px"})
+(def evolve-button-style {:width "100px" :color "#ccff00" :font-size "20px" :text-align "center"})
 
 (def reports (r/atom []))
 (def result (r/atom []))
@@ -18,15 +19,18 @@
 (def gp-gen (r/atom 0))
 (def gp-pop (r/atom []))
 
-(def error-function (r/atom :regression-error-function))
+(def error-function (r/atom :regression))
 (def generations (r/atom 10))
 (def population-size (r/atom 10))
-(def max-initial-plushy-size (r/atom 5))
-(def step-limit (r/atom 10))
+(def max-initial-plushy-size (r/atom 50))
+(def step-limit (r/atom 100))
 (def parent-selection (r/atom :tournament))
 (def tournament-size (r/atom 5))
 
-(def error-functions {:regression-error-function propel/regression-error-function})
+(def error-functions {:regression propel/regression-error-function
+                      :string-classification propel/string-classification-error-function})
+(def parent-selections [:tournament :lexicase])
+
 (def param-max {"generations" 200
                 "population-size" 500
                 "max-initial-plushy-size" 100
@@ -43,14 +47,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;
 
 (defn make-population [instr mips]
-  (repeatedly @population-size #(hash-map :plushy (propel/make-random-plushy instr mips))))
+  (repeatedly @population-size 
+              #(hash-map :plushy 
+                         (propel/make-random-plushy instr mips))))
+
+(defn evaluate-pop [argmap]
+  (map (partial (:error-function argmap) argmap)
+                             @gp-pop))
 
 (defn sort-pop
   "Returns the curent population of items sorted by their :total-error's"
   [argmap]
-  (println "2 - start sort-pop" (partial (:error-function argmap) argmap))
-  (sort-by :total-error (map (partial (:error-function argmap) argmap)
-                             @gp-pop)))
+  ; (println "\t (partial (:error-function argmap) argmap): " (partial (:error-function argmap) argmap))
+  (println "1 - (evaluate pop argmap): " (evaluate-pop argmap))
+  (sort-by :total-error (evaluate-pop argmap)))
 
 (defn propel-gp
   "Runs genetic programming to solve, or approximately solve, a problem in the
@@ -59,13 +69,16 @@
            instructions max-initial-plushy-size] :as argmap}]
   (let [evaluated-pop (sort-pop argmap) ; NOTE: sort-pop does not compile
         curr-best (first evaluated-pop)]
-    (println "3 - evaluated pop, in let")
+    (println "\n2 - sorted the errored pop, now in let")
     (swap! reports conj (propel/report evaluated-pop (int @gp-gen)))
     (if
      (or (zero? (:total-error curr-best)) (< (:total-error curr-best) 0.1) (>= (int @gp-gen) max-generations))
-      (do (swap! result conj "Ended")
-          (swap! result conj (str "Best genome: " (:plushy curr-best) ", error: " (int (:error curr-best)))))
-      (do (reset! gp-pop (repeatedly population-size #(propel/new-individual evaluated-pop argmap)))
+      (do (swap! gp-gen inc)
+          (swap! result conj "Ended")
+          (swap! result conj (str "Best genome: " (:plushy curr-best) 
+                                  ", error: " (int (:error curr-best)))))
+      (do (reset! gp-pop (repeatedly population-size 
+                                     #(propel/new-individual evaluated-pop argmap)))
           (swap! gp-gen inc))))) ; TODO: PAUSE CASE ??? make the above true until you pause...
 
 ;;;;;;;;;;;;;;;;;;;;;
@@ -97,9 +110,9 @@
   (let [argmap (get-argmap)]
     (if (= (int @gp-gen) 0)
       (reset! gp-pop (make-population (:instructions argmap) (:max-initial-plushy-size argmap))))
-    (println "1 - made population" @gp-pop)
     (propel-gp argmap)
-    (if (or (< (:total-error (first (sort-pop argmap))) 0.1) (>= (int @gp-gen) (:max-generations argmap)))
+    (if (or (< (:total-error (first (sort-pop argmap))) 0.1) 
+            (>= (int @gp-gen) (:max-generations argmap)))
       (do (propel-gp argmap)
           (reset! evolved? true))
       (if (not isStep)
@@ -107,6 +120,14 @@
 
 (defn stop-evolve []
   (.cancelAnimationFrame js/window @anFrame))
+
+(defn stats-evolve []
+  
+  )
+
+(defn visualize-evolve []
+  
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;  COMPONENT BUILDING  ;;
@@ -119,16 +140,16 @@
   (vec (cons :div (mapv #((fn [n] [:div [:b (str n)]]) %) @result))))
 
 (defn error-function-input []
-  ;(if (contains? error-functions @error-function)
-  (let [i {:type "text" :value @error-function  :style (assoc param-input-style :width "200px")
-           :on-change #(reset! error-function (-> % .-target .-value))}]
-    [:input.field i]));  )
+  [:select {:field :list :value @error-function :style (assoc param-input-style :width "150px" :height "18px")
+            :on-change #(reset! error-function (-> % .-target .-value))}
+   [:option {:key :regression} "Regression"]
+   [:option {:key :string-classification} "String Classification"]])
 
 (defn parent-selection-input []
-  ;(if (contains? parent-selections @parent-selection)  
-  [:input.field {:type "text" :value @parent-selection
-                 :style (assoc param-input-style :width "150px")
-                 :on-change #(reset! parent-selection (-> % .-target .-value))}]);  )
+  [:select {:field :list :value @parent-selection :style (assoc param-input-style :width "150px" :height "18px")
+            :on-change #(reset! parent-selection (-> % .-target .-value))}
+   [:option {:key :tournament} "Tournament"]
+   [:option {:key :lexicase} "Lexicase"]])
 
 (defn generations-input []
   (let [b {:type "number" :value @generations :style param-input-style
@@ -163,7 +184,7 @@
       [:input (assoc b :disabled "true")])))
 
 (defn tournament-size-input []
-  (let [b {:type "number" :value @tournament-size :style param-input-style ;:disabled (str (= (int @gp-prog-gen) 0))
+  (let [b {:type "number" :value @tournament-size :style param-input-style
            :min (get param-min "tournament-size") :max (get param-max "tournament-size")
            :on-change #(reset! tournament-size (-> % .-target .-value))}]
     (if (= (int @gp-gen) 0)
@@ -173,34 +194,39 @@
 (defn run-button []
   [:input
    (if (false? @evolved?)
-     {:type "button" :value "Run" :on-click #(start-evolve false)
-      :style {:width "100px" :color "#ccff00" :font-size "24px" :text-align "center"}}
-     {:type "button" :value "Run" :disabled "true" :on-click #(start-evolve false)
-      :style {:width "100px" :color "#ccff00" :font-size "24px" :text-align "center"}})])
+     {:type "button" :value "Run" :style evolve-button-style :on-click #(start-evolve false)}
+     {:type "button" :value "Run" :style evolve-button-style :on-click #(start-evolve false) :disabled "true" })])
 
 (defn pause-button []
   [:input
    (if (false? @evolved?)
-     {:type "button" :value "Pause" :on-click #(stop-evolve)
-      :style {:width "100px" :color "#ccff00" :font-size "24px" :text-align "center"}}
-     {:type "button" :value "Pause" :disabled "true" :on-click #(stop-evolve)
-      :style {:width "100px" :color "#ccff00" :font-size "24px" :text-align "center"}})])
+     {:type "button" :value "Pause" :style evolve-button-style :on-click #(stop-evolve)}
+     {:type "button" :value "Pause" :style evolve-button-style :on-click #(stop-evolve) :disabled "true" })])
 
 (defn step-button []
   [:input
    (if (false? @evolved?)
-     {:type "button" :value "Step" :on-click #(start-evolve true)
-      :style {:width "100px" :color "#ccff00" :font-size "24px" :text-align "center"}}
-     {:type "button" :value "Step" :disabled "true" :on-click #(start-evolve true)
-      :style {:width "100px" :color "#ccff00" :font-size "24px" :text-align "center"}})])
+     {:type "button" :value "Step" :style evolve-button-style :on-click #(start-evolve true)}
+     {:type "button" :value "Step" :style evolve-button-style :on-click #(start-evolve true) :disabled "true" })])
 
 (defn reset-button []
-  [:input {:type "button" :value "Reset"
-           :style {:width "100px" :color "#ccff00" :font-size "24px" :text-align "center"}
+  [:input {:type "button" :value "Reset" :style evolve-button-style
            :on-click #(do (reset! reports [])
                           (reset! gp-gen 0)
                           (reset! result [])
                           (reset! evolved? false))}])
+
+(defn stats-button []
+  [:input
+   (if (false? @evolved?)
+     {:type "button" :value "Stats" :style evolve-button-style :on-click #(stats-evolve)}
+     {:type "button" :value "Stats" :style evolve-button-style :on-click #(stats-evolve) :disabled "true" })])
+
+(defn visualize-button []
+  [:input
+   (if (false? @evolved?)
+     {:type "button" :value "Visualize" :on-click #(visualize-evolve) :style evolve-button-style}
+     {:type "button" :value "Visualize" :on-click #(visualize-evolve) :style evolve-button-style :disabled "true" })])
 
 ;;;;;;;;;;;;;
 ;;  Views  ;;
@@ -225,8 +251,10 @@
           [:td [pause-button]] [:spacer-button]
           [:td [step-button]] [:spacer-button]
           [:td [reset-button]] [:spacer-button]
-     ;[:td [plot-button]] [:spacer-button]
-     ;[:td [other-button]] [:spacer-button]
+          ;[:td [stats-button]] [:spacer-button]
+          [:td [visualize-button]] [:spacer-button]
+          ;[:td [other-button]] [:spacer-button]
+          ;[:td [other-button]] [:spacer-button]
           ]]])
 
 (defn reports-component []

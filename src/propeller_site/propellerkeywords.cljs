@@ -1,4 +1,4 @@
-(ns propeller-site.propeller
+(ns propeller-site.propellerkeywords
   (:require [clojure.string]))
 
 ;; ============================================================================
@@ -219,10 +219,8 @@
 ;; =============================================================================
 
 ;; Pushes the input labeled :in1 on the inputs map onto the :exec stack
-(def-instruction
-  :in1
-  (fn [state]
-    (push-to-stack state :exec (:in1 (:input state)))))
+(defn in1 [state]
+  (push-to-stack state :exec (:in1 (:input state))))
 
 ;; =============================================================================
 ;; FLOAT and INTEGER Instructions (polymorphic)
@@ -328,35 +326,33 @@
 
 ;; 2 types x 16 functions = 32 instructions
 (generate-functions
-  [:float :integer]
-  [_gt _gte _lt _lte _add _subtract _mult _quot _mod _max _min _inc _dec
-   _fromboolean _fromchar _fromstring])
+ [:float :integer]
+ [_gt _gte _lt _lte _add _subtract _mult _quot _mod _max _min _inc _dec
+  _fromboolean _fromchar _fromstring])
 
 ;; =============================================================================
 ;; FLOAT Instructions only
 ;; =============================================================================
 
 ;; Pushes the cosine of the top FLOAT
-(def-instruction
-  :float_cos
+(def float_cos
   (fn [state]
     (make-instruction state cos [:float] :float)))
 
 ;; Pushes the sine of the top FLOAT
-(def-instruction
-  :float_sin
+(def float_sin
   (fn [state]
     (make-instruction state sin [:float] :float)))
 
 ;; Pushes the tangent of the top FLOAT
-(def-instruction
-  :float_tan
+(def
+  float_tan
   (fn [state]
     (make-instruction state tan [:float] :float)))
 
 ;; Pushes the floating point version of the top INTEGER
-(def-instruction
-  :float_frominteger
+(def
+  float_frominteger
   (fn [state]
     (make-instruction state float [:integer] :float)))
 
@@ -365,8 +361,8 @@
 ;; =============================================================================
 
 ;; Pushes the result of truncating the top FLOAT towards negative infinity
-(def-instruction
-  :integer_fromfloat
+(def
+  integer_fromfloat
   (fn [state]
     (make-instruction state int [:float] :integer)))
 
@@ -374,15 +370,15 @@
 ;; CODE and EXEC Instructions
 ;; =============================================================================
 
-(def-instruction
-  :exec_dup
+(def
+  exec_dup
   (fn [state]
     (if (empty-stack? state :exec)
       state
       (push-to-stack state :exec (first (:exec state))))))
 
-(def-instruction
-  :exec_if
+(def
+  exec_if
   (fn [state]
     (make-instruction state #(if %1 %3 %2) [:boolean :exec :exec] :exec)))
 
@@ -391,26 +387,26 @@
 ;; =============================================================================
 
 ;; Pushes the logical AND of the top two BOOLEANs
-(def-instruction
-  :boolean_and
+(def
+  boolean_and
   (fn [state]
     (make-instruction state #(and %1 %2) [:boolean :boolean] :boolean)))
 
 ;; Pushes the logical OR of the top two BOOLEANs
-(def-instruction
-  :boolean_or
+(def
+  boolean_or
   (fn [state]
     (make-instruction state #(or %1 %2) [:boolean :boolean] :boolean)))
 
 ;; Pushes the logical NOT of the top BOOLEAN
-(def-instruction
-  :boolean_not
+(def
+  boolean_not
   (fn [state]
     (make-instruction state not [:boolean] :boolean)))
 
 ;; Pushes the logical XOR of the top two BOOLEAN
-(def-instruction
-  :boolean_xor
+(def
+  boolean_xor
   (fn [state]
     (make-instruction state #(or (and %1 (not %2))
                                  (and (not %1) %2))
@@ -419,27 +415,27 @@
 
 ;; Pushes the logical AND of the top two BOOLEANs, after applying NOT to the
 ;; first one
-(def-instruction
-  :boolean_invert_first_then_and
+(def
+  boolean_invert_first_then_and
   (fn [state]
     (make-instruction state #(and %1 (not %2)) [:boolean :boolean] :boolean)))
 
 ;; Pushes the logical AND of the top two BOOLEANs, after applying NOT to the
 ;; second one
-(def-instruction
-  :boolean_invert_second_then_and
+(def
+  boolean_invert_second_then_and
   (fn [state]
     (make-instruction state #(and (not %1) %2) [:boolean :boolean] :boolean)))
 
 ;; Pushes FALSE if the top FLOAT is 0.0, and TRUE otherwise
-(def-instruction
-  :boolean_fromfloat
+(def
+  boolean_fromfloat
   (fn [state]
     (make-instruction state #(not (zero? %)) [:float] :boolean)))
 
 ;; Pushes FALSE if the top INTEGER is 0, and TRUE otherwise
-(def-instruction
-  :boolean_frominteger
+(def
+  boolean_frominteger
   (fn [state]
     (make-instruction state #(not (zero? %)) [:integer] :boolean)))
 
@@ -448,20 +444,20 @@
 ;; =============================================================================
 
 ; ;; Pushes TRUE onto the BOOLEAN stack if the popped character is a letter
-; (def-instruction
+; (def
 ;   :char_isletter
 ;   (fn [state]
 ;     (make-instruction state is-letter [:char] :boolean)))
 
 ; ;; Pushes TRUE onto the BOOLEAN stack if the popped character is a digit
-; (def-instruction
+; (def
 ;   :char_isdigit
 ;   (fn [state]
 ;     (make-instruction state is-digit [:char] :boolean)))
 
 ; ;; Pushes TRUE onto the BOOLEAN stack if the popped character is whitespace
 ; ;; (newline, space, or tab)
-; (def-instruction
+; (def
 ;   :char_iswhitespace
 ;   (fn [state]
 ;     (make-instruction state is-whitespace [:char] :boolean)))
@@ -470,24 +466,24 @@
 ;; its corresponding ASCII value onto the CHAR stack. Whole numbers larger than
 ;; 128 will be reduced modulo 128. For instance, 248.45 will result in x being
 ;; pushed.
-(def-instruction
-  :char_fromfloat
+(def
+  char_fromfloat
   (fn [state]
     (make-instruction state #(char (mod (long %) 128)) [:float] :char)))
 
 ;; Pops the INTEGER stack and pushes the top element's corresponding ASCII
 ;; value onto the CHAR stack. Integers larger than 128 will be reduced modulo
 ;; 128. For instance, 248 will result in x being pushed
-(def-instruction
-  :char_frominteger
+(def
+  char_frominteger
   (fn [state]
     (make-instruction state #(char (mod % 128)) [:integer] :char)))
 
 ;; Pops the STRING stack and pushes the top element's constituent characters
 ;; onto the CHAR stack, in order. For instance, "hello" will result in the
 ;; top of the CHAR stack being o l l e h
-(def-instruction
-  :char_allfromstring
+(def
+  char_allfromstring
   (fn [state]
     (make-instruction state #(map char %) [:string] :char)))
 
@@ -495,38 +491,38 @@
 ;; STRING Instructions
 ;; =============================================================================
 
-(def-instruction
-  :string_=
+(def
+  string_=
   (fn [state]
     (make-instruction state = [:string :string] :boolean)))
 
-(def-instruction
-  :string_concat
+(def
+  string_concat
   (fn [state]
     (make-instruction state #(apply str (concat %1 %2)) [:string :string] :string)))
 
-(def-instruction
-  :string_drop
+(def
+  string_drop
   (fn [state]
     (make-instruction state #(apply str (drop %1 %2)) [:integer :string] :string)))
 
-(def-instruction
-  :string_includes?
+(def
+  string_includes?
   (fn [state]
     (make-instruction state clojure.string/includes? [:string :string] :boolean)))
 
-(def-instruction
-  :string_length
+(def
+  string_length
   (fn [state]
     (make-instruction state count [:string] :integer)))
 
-(def-instruction
-  :string_reverse
+(def
+  string_reverse
   (fn [state]
     (make-instruction state #(apply str (reverse %)) [:string] :string)))
 
-(def-instruction
-  :string_take
+(def
+  string_take
   (fn [state]
     (make-instruction state #(apply str (take %1 %2)) [:integer :string] :string)))
 
@@ -639,11 +635,12 @@
   [state]
   (let [popped-state (pop-stack state :exec)
         first-instruction-raw (first (:exec state))
-        first-instruction (if (keyword? first-instruction-raw)
-                            (first-instruction-raw @instruction-table)
-                            first-instruction-raw)]
+        first-instruction   first-instruction-raw]
     (println (type first-instruction) first-instruction)
     (cond
+      (keyword? first-instruction)
+      (let [first-instruction (first-instruction @instruction-table)]
+        (do (println (type first-instruction)) (first-instruction popped-state)))
       (fn? first-instruction)
       (first-instruction popped-state)
       ;
@@ -664,8 +661,9 @@
       ;
       :else
       ; (throw (Exception.
-      (throw (js/Error. (str "Unrecognized Push instruction in program: "
-                               (name first-instruction-raw)))))))
+      (do (println "ERROR \t" first-instruction)
+          (throw (js/Error. (str "Unrecognized Push instruction in program: "
+                                 (name first-instruction-raw))))))))
 
 (defn interpret-program
   "Runs the given problem starting with the stacks in start-state."
@@ -810,11 +808,11 @@
   [{:keys [population-size max-generations error-function instructions
            max-initial-plushy-size]
     :as   argmap}]
-  
+
   (println "Starting GP with args: " argmap)
   (println "Registered instructions:")
   (println (sort (keys @instruction-table)))
-  
+
   (loop [generation 0
          population (repeatedly
                      population-size
@@ -907,7 +905,7 @@
                         (abs (- correct-output output))))
                     correct-outputs
                     outputs)]
-    
+
     (println (str "\n\t----------------------------------
                    \n\tprogram: " program
                   "\n\tinputs: " inputs
