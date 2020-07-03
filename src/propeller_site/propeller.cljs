@@ -1,5 +1,8 @@
 (ns propeller-site.propeller
-  (:require [clojure.string]))
+  (:require-macros [propeller-site.macros :refer [def-instruction
+                                                  generate-functions]])
+  (:require [clojure.string]
+            [propeller-site.globals :as globals]))
 
 ;; ============================================================================
 ;; Tools
@@ -56,8 +59,6 @@
 ;;
 ;; TMH: ERCs?
 ;; =============================================================================
-
-(def instruction-table (atom (hash-map)))
 
 ;; Set of original propel instructions
 (def default-instructions
@@ -120,14 +121,23 @@
                   })
 
 ;; Record-based states for performance
-(defmacro define-push-state []
-  `(defrecord ~'State [~@(map #(symbol (name %)) stacks)]))
-
-(define-push-state)
 
 ;; Empty push state - each stack type is nil
 ;(defonce empty-state (map->State {}))
-(defonce empty-state {})
+(defonce empty-state {:auxiliary      '()
+                      :boolean        '()
+                      :char           '()
+                      :code           '()
+                      :exec           '()
+                      :float          '()
+                      :input          {}
+                      :integer        '()
+                      :output         '()
+                      :string         '()
+                      :vector_boolean '()
+                      :vector_float   '()
+                      :vector_integer '()
+                      :vector_string  '()})
 
 (def example-push-state
   {:exec    '()
@@ -179,9 +189,6 @@
                  (rest stacks)
                  (conj args (peek-stack state current-stack))))))))
 
-(defmacro def-instruction
-  [instruction definition]
-  `(swap! instruction-table assoc '~instruction ~definition))
 
 ;; A utility function for making Push instructions. Takes a state, a function
 ;; to apply to the args, the stacks to take the args from, and the stack to
@@ -200,11 +207,6 @@
 ;; function strings, e.g. [_+, _*, _=], automates the generation of all possible
 ;; combination instructions, which here would be :float_+, :float_*, :float_=,
 ;; :integer_+, :integer_*, and :integer_=
-(defmacro generate-functions [stacks functions]
-  `(do ~@(for [stack stacks
-               function functions
-               :let [instruction-name (keyword (str (name stack) function))]]
-           `(def-instruction ~instruction-name (partial ~function ~stack)))))
 
 ;; Pretty-prints a Push state, for logging or debugging purposes
 (defn print-state
@@ -640,7 +642,7 @@
   (let [popped-state (pop-stack state :exec)
         first-instruction-raw (first (:exec state))
         first-instruction (if (keyword? first-instruction-raw)
-                            (first-instruction-raw @instruction-table)
+                            (first-instruction-raw @globals/instruction-table)
                             first-instruction-raw)]
     (println (type first-instruction) first-instruction)
     (cond
@@ -813,7 +815,7 @@
   
   (println "Starting GP with args: " argmap)
   (println "Registered instructions:")
-  (println (sort (keys @instruction-table)))
+  (println (sort (keys @globals/instruction-table)))
   
   (loop [generation 0
          population (repeatedly
