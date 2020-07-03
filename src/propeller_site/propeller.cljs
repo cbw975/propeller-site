@@ -644,7 +644,7 @@
         first-instruction (if (keyword? first-instruction-raw)
                             (first-instruction-raw @globals/instruction-table)
                             first-instruction-raw)]
-    (println (type first-instruction) first-instruction)
+
     (cond
       (fn? first-instruction)
       (first-instruction popped-state)
@@ -793,50 +793,47 @@
   "Reports information each generation."
   [pop generation]
   (let [best (first pop)]
-    (println "-------------------------------------------------------")
-    (println "               Report for Generation" generation)
-    (println "-------------------------------------------------------")
-    (print "Best plushy: ") (prn (:plushy best))
-    (print "Best program: ") (prn (plushy->push (:plushy best)))
-    (println "Best total error:" (:total-error best))
-    (println "Best errors:" (:errors best))
-    (println "Best behaviors:" (:behaviors best))
-    (println "Genotypic diversity:"
-             (float (/ (count (distinct (map :plushy pop))) (count pop))))
-    (println "Average genome length:"
-             (float (/ (reduce + (map count (map :plushy pop))) (count pop))))
-    (println)))
+    (str "Generation:   " generation ", "
+         "Best total error:" (:total-error best) ", "
+         ;"Best errors:" (:errors best) ", "
+         "Best plushy: " (:plushy best) ", "
+         ;"Best program: " (plushy->push (:plushy best)) ", "
+         ;"Best behaviors:" (:behaviors best) ", "
+         "Genotypic diversity:"
+         (float (/ (count (distinct (map :plushy pop))) (count pop))) ", "
+         "Average genome length:"
+         (float (/ (reduce + (map count (map :plushy pop))) (count pop))))))
 
-(defn gp
-  "Main GP loop."
-  [{:keys [population-size max-generations error-function instructions
-           max-initial-plushy-size]
-    :as   argmap}]
+;; (defn gp
+;;   "Main GP loop."
+;;   [{:keys [population-size max-generations error-function instructions
+;;            max-initial-plushy-size]
+;;     :as   argmap}]
   
-  (println "Starting GP with args: " argmap)
-  (println "Registered instructions:")
-  (println (sort (keys @globals/instruction-table)))
+;;   (println "Starting GP with args: " argmap)
+;;   (println "Registered instructions:")
+;;   (println (sort (keys @globals/instruction-table)))
   
-  (loop [generation 0
-         population (repeatedly
-                     population-size
-                     #(hash-map :plushy
-                                (make-random-plushy instructions
-                                                    max-initial-plushy-size)))]
-    (let [evaluated-pop (sort-by :total-error
-                                 (map (partial error-function argmap)
-                                      population))]
-      (report evaluated-pop generation)
-      (cond
-        (zero? (:total-error (first evaluated-pop))) (println "SUCCESS")
-        (>= generation max-generations) nil
-        :else (recur (inc generation)
-                     (if (:elitism argmap)
-                       (conj (repeatedly (dec population-size)
-                                         #(new-individual evaluated-pop argmap))
-                             (first evaluated-pop))
-                       (repeatedly population-size
-                                   #(new-individual evaluated-pop argmap))))))))
+;;   (loop [generation 0
+;;          population (repeatedly
+;;                      population-size
+;;                      #(hash-map :plushy
+;;                                 (make-random-plushy instructions
+;;                                                     max-initial-plushy-size)))]
+;;     (let [evaluated-pop (sort-by :total-error
+;;                                  (map (partial error-function argmap)
+;;                                       population))]
+;;       (report evaluated-pop generation)
+;;       (cond
+;;         (zero? (:total-error (first evaluated-pop))) (println "SUCCESS")
+;;         (>= generation max-generations) nil
+;;         :else (recur (inc generation)
+;;                      (if (:elitism argmap)
+;;                        (conj (repeatedly (dec population-size)
+;;                                          #(new-individual evaluated-pop argmap))
+;;                              (first evaluated-pop))
+;;                        (repeatedly population-size
+;;                                    #(new-individual evaluated-pop argmap))))))))
 
 ;; =============================================================================
 ;; String classification
@@ -910,34 +907,34 @@
                     correct-outputs
                     outputs)]
     
-    (println (str "\n\t----------------------------------
-                   \n\tprogram: " program
-                  "\n\tinputs: " inputs
-                  "\n\tcorrect-outputs" correct-outputs
-                  "\n\toutputs: " outputs
-                  "\n\terrors: " errors))
+    ;; (println (str "\n\t----------------------------------
+    ;;                \n\tprogram: " program
+    ;;               "\n\tinputs: " inputs
+    ;;               "\n\tcorrect-outputs" correct-outputs
+    ;;               "\n\toutputs: " outputs
+    ;;               "\n\terrors: " errors))
     (assoc individual
            :behaviors outputs
            :errors errors
            :total-error (apply + errors))))
 
-(defn -main
-  "Runs propel-gp, giving it a map of arguments."
-  [& args]
-  (gp (update-in
-       (merge
-        {:instructions            default-instructions
-         :error-function          regression-error-function
-         :max-generations         500
-         :population-size         500
-         :max-initial-plushy-size 50
-         :step-limit              100
-         :parent-selection        :tournament-selection
-         :tournament-size         5
-         :umad-rate               0.1
-         :variation               {:umad 0.5 :crossover 0.5}
-         :elitism                 false}
-        (apply hash-map
-               (map js/Number args)))
-       [:error-function]
-       #(if (fn? %) % (eval %)))))
+;; (defn -main
+;;   "Runs propel-gp, giving it a map of arguments."
+;;   [& args]
+;;   (gp (update-in
+;;        (merge
+;;         {:instructions            default-instructions
+;;          :error-function          regression-error-function
+;;          :max-generations         500
+;;          :population-size         500
+;;          :max-initial-plushy-size 50
+;;          :step-limit              100
+;;          :parent-selection        :tournament-selection
+;;          :tournament-size         5
+;;          :umad-rate               0.1
+;;          :variation               {:umad 0.5 :crossover 0.5}
+;;          :elitism                 false}
+;;         (apply hash-map
+;;                (map js/Number args)))
+;;        [:error-function]
+;;        #(if (fn? %) % (eval %)))))
