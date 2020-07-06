@@ -129,10 +129,7 @@ div.spacer-vertical {
 }
 
 table {
-  border-collapse: collapse;
-	/* background: #B5C581;
-  border-bottom: 1px solid #A1B55E; */
-  
+  border-collapse: collapse;  
 }
 
 th {

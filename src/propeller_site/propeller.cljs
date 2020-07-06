@@ -98,21 +98,21 @@
             :exec_if  2})
 
 ;; Set of all stacks used by the Push interpreter
-(defonce stacks #{;:auxiliary
+(defonce stacks #{:auxiliary
                   :boolean
-                  ; :char
-                  ; :code
-                  ; :environment
+                  :char
+                  :code
+                  :environment
                   :exec
                   :float
                   :genome
-                  ; :gtm
-                  ; :input
+                  :gtm
+                  :input
                   :integer
                   :output
                   :return
-                  ; :string
-                  ; :tag
+                  :string
+                  :tag
                   :vector_boolean
                   :vector_float
                   :vector_integer

@@ -4,15 +4,13 @@
    [reagent.dom :as d]
    [propeller-site.propeller :as propel]))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;  STYLES & PARAMETERS  ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def param-input-style {:border "#555555" :font-size "15px" :height "15px"
-                        :text-align "center" :line-height "1px" :width "60px"})
-(def evolve-button-style {:width "100px" :color "#ccff00" :font-size "20px" :text-align "center"})
-(def disabled-style {:width "100px" :color "#666666" :font-size "20px" :text-align "center" :border "#999999" :background-color "#cccccc"})
+(def param-input-style {:border "#555555" :font-size "15px" :height "15px" :line-height "1px" :width "60px"})
+(def evolve-button-style {:width "100px" :color "#ccff00" :font-size "20px"})
+(def disabled-style {:width "100px" :color "#666666" :font-size "20px" :border "#999999" :background-color "#cccccc"})
 
 (def reports (r/atom []))
 (def result (r/atom []))
@@ -20,35 +18,39 @@
 (def gp-gen (r/atom 0))
 (def gp-pop (r/atom []))
 
-(def error-function (r/atom :regression))
+(def error-function (r/atom "regression"))
 (def generations (r/atom 10))
 (def population-size (r/atom 10))
 (def max-initial-plushy-size (r/atom 50))
 (def step-limit (r/atom 100))
-(def parent-selection (r/atom :tournament))
+(def parent-selection (r/atom :lexicase))
 (def tournament-size (r/atom 5))
 
-(def error-functions {:regression propel/regression-error-function
-                      :string-classification propel/string-classification-error-function})
-(def parent-selections [:tournament :lexicase])
+(def error-functions {"regression" propel/regression-error-function
+                      "string-classification" propel/string-classification-error-function})
 
-(def param-max {"generations" 200
-                "population-size" 500
-                "max-initial-plushy-size" 100
-                "step-limit" 200
-                "tournament-size" @population-size})
-(def param-min {"generations" 0
-                "population-size" 1
-                "max-initial-plushy-size" 1
-                "step-limit" 1
-                "tournament-size" @population-size})
+(def param-max {:generations 300
+                :population-size 500
+                :max-initial-plushy-size 100
+                :step-limit 200
+                :tournament-size @population-size})
+(def param-min {:generations 0
+                :population-size 1
+                :max-initial-plushy-size 1
+                :step-limit 1
+                :tournament-size @population-size})
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;;  GP FUNCTION(S)  ;;
 ;;;;;;;;;;;;;;;;;;;;;;
 
+(defn report-start []
+  (swap! reports conj (str @error-function " errror function for " @generations " generations with " @population-size " population size."))
+  (swap! reports conj (str "Running Propeller GP!"))
+  (swap! reports conj (str ".....................................")))
+
 (defn make-population [instr mips]
-  (repeatedly @population-size 
+  (repeatedly (int @population-size)
               #(hash-map :plushy 
                          (propel/make-random-plushy instr mips))))
 
@@ -86,40 +88,45 @@
 (def anFrame (r/atom {}))
 
 (defn param-change
-  "Returns the parameter (<str> name) value <int> inputted, corrected if out-of-bounds"
+  "Returns the parameter (<str> name) value <int> inputted, corrected if out-of-bounds or casted if non-int"
   [param-name param-value]
-  (cond (< (int param-value) (get param-min param-name)) (get param-min param-name)
-        (> (int param-value) (get param-max param-name)) (get param-max param-name)
-        :else param-value))
+  (cond (< (int param-value) (get param-min param-name))
+        (int (get param-min param-name))
+
+        (> (int param-value) (get param-max param-name))
+        (int (get param-max param-name))
+
+        :else
+        (int param-value)))
 
 (defn get-argmap []
   {:instructions propel/default-instructions
    :error-function (get error-functions @error-function)
-   :max-generations (param-change "generations" (int @generations))
-   :population-size (param-change "population-size" (int @population-size))
-   :max-initial-plushy-size (param-change "max-initial-plushy-size" (int @max-initial-plushy-size))
-   :step-limit (param-change "step-limit" (int @step-limit))
-   :parent-selection @parent-selection
-   :tournament-size (param-change "tournament-size" (int @tournament-size))})
+   :max-generations (param-change :generations (int @generations))
+   :population-size (param-change :population-size (int @population-size))
+   :max-initial-plushy-size (param-change :max-initial-plushy-size (int @max-initial-plushy-size))
+   :step-limit (param-change :step-limit (int @step-limit))
+   :parent-selection (keyword @parent-selection)
+   :tournament-size (param-change :tournament-size (int @tournament-size))})
 
-(defn step-evolve
-  []
+(defn beginning [argmap]
+  (report-start)
+  (reset! gp-pop (make-population (:instructions argmap)
+                                  (:max-initial-plushy-size argmap))))
+(defn step-evolve []
   (let [argmap (get-argmap)]
     (if (= (int @gp-gen) 0)
-      (reset! gp-pop (make-population (:instructions argmap) 
-                                      (:max-initial-plushy-size argmap))))
+      (beginning argmap))
     (propel-gp argmap)
     (if (or (< (:total-error (first (sort-pop argmap))) 0.1)
             (>= (int @gp-gen) (:max-generations argmap)))
       (do (propel-gp argmap)
           (reset! evolved? true)))))
 
-(defn run-evolve
-  []
+(defn run-evolve []
   (let [argmap (get-argmap)]
     (if (= (int @gp-gen) 0)
-      (reset! gp-pop (make-population (:instructions argmap) 
-                                      (:max-initial-plushy-size argmap))))
+            (beginning argmap))
     (propel-gp argmap)
     (if (or (< (:total-error (first (sort-pop argmap))) 0.1)
             (>= (int @gp-gen) (:max-generations argmap)))
@@ -131,7 +138,6 @@
   (.cancelAnimationFrame js/window @anFrame))
 
 (defn visualize-evolve []
-  
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -145,87 +151,74 @@
   (vec (cons :div (mapv #((fn [n] [:div [:b (str n)]]) %) @result))))
 
 (defn error-function-input []
-  [:select {:field :list :value @error-function :style (assoc param-input-style :width "150px" :height "18px")
+  [:select {:value @error-function :style (assoc param-input-style :width "150px" :height "18px")
             :on-change #(reset! error-function (-> % .-target .-value))}
-   [:option {:key :regression} "Regression"]
-   [:option {:key :string-classification} "String Classification"]])
+   [:option {:value "regression"} "Regression"]
+   [:option {:value "string-classification"} "String Classification"]])
 
 (defn parent-selection-input []
-  [:select {:field :list :value @parent-selection :style (assoc param-input-style :width "150px" :height "18px")
+  [:select {:value @parent-selection :style (assoc param-input-style :width "150px" :height "18px")
             :on-change #(reset! parent-selection (-> % .-target .-value))}
-   [:option {:key :tournament} "Tournament"]
-   [:option {:key :lexicase} "Lexicase"]])
+   [:option {:value :tournament} "Tournament"]
+   [:option {:value :lexicase} "Lexicase"]])
 
 (defn generations-input []
-  (let [b {:type "number" :value @generations :style param-input-style
+  [:input {:type "number" :value @generations :style param-input-style
            :min (get param-min "generations") :max (get param-max "generations")
-           :on-change #(reset! generations (-> % .-target .-value))}]
-    (if (= (int @gp-gen) 0)
-      [:input b]
-      [:input (assoc b :disabled "true")])))
+           :disabled (not= (int @gp-gen) 0)
+           :on-change #(reset! generations (-> % .-target .-value))}])
 
 (defn population-size-input []
-  (let [b {:type "number" :value @population-size :style param-input-style
+  [:input {:type "number" :value @population-size :style param-input-style
            :min (get param-min "population-size") :max (get param-max "population-size")
-           :on-change #(reset! population-size (-> % .-target .-value))}]
-    (if (= (int @gp-gen) 0)
-      [:input b]
-      [:input (assoc b :disabled "true")])))
+           :disabled (not= (int @gp-gen) 0)
+           :on-change #(reset! population-size (-> % .-target .-value))}])
 
 (defn max-initial-plushy-size-input []
-  (let [b {:type "number" :value @max-initial-plushy-size :style param-input-style
+  [:input {:type "number" :value @max-initial-plushy-size :style param-input-style
            :min (get param-min "max-initial-plushy-size") :max (get param-max "max-initial-plushy-size")
-           :on-change #(reset! max-initial-plushy-size (-> % .-target .-value))}]
-    (if (= (int @gp-gen) 0)
-      [:input b]
-      [:input (assoc b :disabled "true")])))
+           :disabled (not= (int @gp-gen) 0)
+           :on-change #(reset! max-initial-plushy-size (-> % .-target .-value))}])
 
 (defn step-limit-input []
-  (let [b {:type "number" :value @step-limit :style param-input-style
+  [:input {:type "number" :value @step-limit :style param-input-style
            :min (get param-min "step-limit") :max (get param-max "step-limit")
-           :on-change #(reset! step-limit (-> % .-target .-value))}]
-    (if (= (int @gp-gen) 0)
-      [:input b]
-      [:input (assoc b :disabled "true")])))
+           :disabled (not= (int @gp-gen) 0)
+           :on-change #(reset! step-limit (-> % .-target .-value))}])
 
 (defn tournament-size-input []
-  (let [b {:type "number" :value @tournament-size :style param-input-style
+  [:input {:type "number" :value @tournament-size :style param-input-style
            :min (get param-min "tournament-size") :max (get param-max "tournament-size")
-           :on-change #(reset! tournament-size (-> % .-target .-value))}]
-    (if (= (int @gp-gen) 0)
-      [:input b]
-      [:input (assoc b :disabled "true")])))
+           :disabled (not= (int @gp-gen) 0)
+           :on-change #(reset! tournament-size (-> % .-target .-value))}])
 
 (defn run-button []
-  [:input
-   (if (false? @evolved?)
-     {:type "button" :value "Run" :style evolve-button-style :on-click #(run-evolve)}
-     {:type "button" :value "Run" :style disabled-style :on-click #(run-evolve) :disabled "true"})])
+  [:input {:type "button" :value "Run" :disabled @evolved?
+           :style (if @evolved? disabled-style evolve-button-style)
+           :on-click #(run-evolve)}])
 
 (defn pause-button []
-  [:input
-   (if (false? @evolved?)
-     {:type "button" :value "Pause" :style evolve-button-style :on-click #(stop-evolve)}
-     {:type "button" :value "Pause" :style disabled-style :on-click #(stop-evolve) :disabled "true" })])
+  [:input {:type "button" :value "Pause" :disabled @evolved?
+           :style (if @evolved? disabled-style evolve-button-style)
+           :on-click #(stop-evolve)}])
 
 (defn step-button []
-  [:input
-   (if (false? @evolved?)
-     {:type "button" :value "Step" :style evolve-button-style :on-click #(step-evolve)}
-     {:type "button" :value "Step" :style disabled-style :on-click #(step-evolve) :disabled "true" })])
+  [:input {:type "button" :value "Step" :disabled @evolved?
+           :style (if @evolved? disabled-style evolve-button-style)
+           :on-click #(step-evolve)}])
 
 (defn reset-button []
   [:input {:type "button" :value "Reset" :style evolve-button-style
            :on-click #(do (reset! reports [])
                           (reset! gp-gen 0)
                           (reset! result [])
-                          (reset! evolved? false))}])
+                          (reset! evolved? false)
+                          (stop-evolve))}])
 
 (defn visualize-button []
-  [:input
-   (if (false? @evolved?)
-     {:type "button" :value "Visualize" :on-click #(visualize-evolve) :style evolve-button-style}
-     {:type "button" :value "Visualize" :on-click #(visualize-evolve) :style disabled-style :disabled "true" })])
+  [:input {:type "button" :value "Visualize" :disabled (false? @evolved?)
+           :style (if @evolved? evolve-button-style disabled-style)
+           :on-click #(visualize-evolve)}])
 
 ;;;;;;;;;;;;;
 ;;  Views  ;;
@@ -244,29 +237,31 @@
      [:tr [:td "Tournament size = " [tournament-size-input]] [:td "the number of individuals per tournament bracket"]]]]])
 
 (defn buttons-component []
-  [:div [:table {:width "100%" :height "35px" :text-align "center"}
-         [:tbody
-          [:td [run-button]] [:spacer-button]
-          [:td [pause-button]] [:spacer-button]
-          [:td [step-button]] [:spacer-button]
-          [:td [reset-button]] [:spacer-button]
-          [:td [visualize-button]] [:spacer-button]
-          ;[:td [other-button]] [:spacer-button]
-          ;[:td [other-button]] [:spacer-button]
-          ]]])
+  [:div
+   [:table.center {:width "100%" :height "35px"}
+    [:tbody
+     [:tr
+      [:td [run-button] [:spacer-button]]
+      [:td [pause-button] [:spacer-button]]
+      [:td [step-button] [:spacer-button]]
+      [:td [reset-button] [:spacer-button]]
+      [:td [visualize-button] [:spacer-button]]]]]])
 
 (defn reports-component []
   [:div
    [:table {:width "100%" :border "1px solid #ccc"}
-    [:tr {:width "50%" :height "35px" :text-align "center"}
-     [:td {:width "80%"} [:h3 [:b [:em "Report: "]]]]
-     [:td [:h3 [:b [:em "Visual: "]]]]]
-    [:tr
-     [:td [:div.scroll-container [output-result] [output-report]]]
-     [:td [:h4 "COMING SOON"]]]]])
+    [:tbody
+     [:tr.center {:width "50%" :height "35px"}
+      [:td {:width "70%"} [:h3 [:b [:em "Report: "]]]]
+      [:td [:h3 [:b [:em "Visual: "]]]]]
+     [:tr
+      [:td [:div.scroll-container
+            [output-result]
+            [output-report]]]
+      [:td [:h4 "COMING SOON"]]]]]])
 
 (defn footer-component []
-  [:div.footer {:width "100%" :margin-bottom "-10px"}
+  [:div.footer
    [:p "Chloe Wohlgemuth (cbw975@gmail.com) \t Sung Kwak (skwak22@amherst.edu) \t Lee Spector (lspector@amherst.edu) (MORE TO BE ADDED)"]])
 
 (defn home-page []
@@ -285,7 +280,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;
 
 (defn mount-root []
-  (println "\n")
   (d/render [home-page] (.getElementById js/document "app")))
 
 (defn init! []
