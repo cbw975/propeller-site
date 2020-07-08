@@ -2,7 +2,8 @@
   (:require
    [reagent.core :as r]
    [reagent.dom :as d]
-   [propeller-site.propeller :as propel]))
+   [propeller-site.propeller :as propel]
+   [propeller-site.scatter :as scatter]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;  STYLES & PARAMETERS  ;;
@@ -41,10 +42,41 @@
                 :tournament-size @population-size})
 
 ;;;;;;;;;;;;;;;;;;;;;;
+;;  VISUALIZATIONS  ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+(def curr-best-program (r/atom []))
+(def curr-best-errors (r/atom []))
+
+(defn get-generation-data
+  "Collects population data each generation"
+  [pop gen]
+  (let [; data from evaluated population
+        best (if (contains? (first pop) :total-error)
+               (first pop)
+               (throw (js/Error. (str "Called when total-error was not calculated"))))
+        best-errors (:errors best)
+        best-plushy (:plushy best)
+        best-program (propel/plushy->push (:plushy best))]
+    (reset! curr-best-program best-program)
+    (reset! curr-best-errors best-errors)
+
+    (scatter/update-plot-data pop gen)
+
+    {:best-program best-program
+     :best-plushy best-plushy
+     :best-errors best-errors}))
+
+(defn get-genomes [pop])
+
+(defn visualize-genomes [])
+
+;;;;;;;;;;;;;;;;;;;;;;
 ;;  GP FUNCTION(S)  ;;
 ;;;;;;;;;;;;;;;;;;;;;;
 
 (defn report-start []
+  (swap! reports conj (str "....................................."))
   (swap! reports conj (str @error-function " errror function for " @generations " generations with " @population-size " population size."))
   (swap! reports conj (str "Running Propeller GP!"))
   (swap! reports conj (str ".....................................")))
@@ -68,18 +100,21 @@
    context (error-function, gp) of the given population-size, # generations, etc."
   [{:keys [population-size max-generations error-function
            instructions max-initial-plushy-size] :as argmap}]
-  (let [evaluated-pop (sort-pop argmap) ; NOTE: sort-pop does not compile
+  (let [evaluated-pop (sort-pop argmap)
         curr-best (first evaluated-pop)]
     (swap! reports conj (propel/report evaluated-pop (int @gp-gen)))
     (if (or (< (:total-error curr-best) 0.1) 
             (>= (int @gp-gen) max-generations))
-      (do ;(swap! gp-gen inc)
+      (do (get-generation-data evaluated-pop @gp-gen)
+          ; (get-genomes evaluated-pop)
           (swap! result conj "Ended")
           (swap! result conj (str "Best genome: " (:plushy curr-best) 
                                   ", Total error: " (int (:total-error curr-best)))))
-      (do (reset! gp-pop (repeatedly population-size 
+      (do (get-generation-data evaluated-pop @gp-gen)
+          ; (get-genomes evaluated-pop)
+          (reset! gp-pop (repeatedly population-size
                                      #(propel/new-individual evaluated-pop argmap)))
-          (swap! gp-gen inc))))) ; TODO: PAUSE CASE ??? make the above true until you pause...
+          (swap! gp-gen inc))))) 
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;;  USER CONTROLS  ;;
@@ -111,6 +146,8 @@
 
 (defn beginning [argmap]
   (report-start)
+  (scatter/set-maxes @generations)
+  (assoc scatter/yscale-max ".scatter__length" @max-initial-plushy-size)
   (reset! gp-pop (make-population (:instructions argmap)
                                   (:max-initial-plushy-size argmap))))
 (defn step-evolve []
@@ -137,8 +174,7 @@
 (defn stop-evolve []
   (.cancelAnimationFrame js/window @anFrame))
 
-(defn visualize-evolve []
-  )
+(defn visualize-evolve [])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;  COMPONENT BUILDING  ;;
@@ -213,6 +249,7 @@
                           (reset! gp-gen 0)
                           (reset! result [])
                           (reset! evolved? false)
+                          (scatter/reset-plot-data)
                           (stop-evolve))}])
 
 (defn visualize-button []
@@ -236,6 +273,26 @@
      [:tr [:td "Parent selection = " [parent-selection-input]] [:td "the process/method by which individuals/programs are chosen to reproduce"]]
      [:tr [:td "Tournament size = " [tournament-size-input]] [:td "the number of individuals per tournament bracket"]]]]])
 
+(defn plots-component
+  "Generates and updates plots as evolution progresses with each generation"
+  []
+  [:table.vis [:tbody
+               [:tr.header
+                [:td {:colSpan 2}
+                 [:h3 "Plots"] 
+                 ]]
+               [:tr
+                [:td
+                 [:h4 "Best Total Error vs Generation"]
+                 [scatter/scatter-error]]
+                [:td
+                 [:h4 "Genotypic diversity vs Generation"]
+                 [scatter/scatter-diversity]]]
+               [:tr
+                [:td [:h4 "Average genome length vs Generation"]
+                 [scatter/scatter-length]]
+                [:td]]]])
+
 (defn buttons-component []
   [:div
    [:table.center {:width "100%" :height "35px"}
@@ -245,20 +302,36 @@
       [:td [pause-button] [:spacer-button]]
       [:td [step-button] [:spacer-button]]
       [:td [reset-button] [:spacer-button]]
-      [:td [visualize-button] [:spacer-button]]]]]])
+      ; [:td [visualize-button] [:spacer-button]]
+      ]]]])
 
-(defn reports-component []
-  [:div
-   [:table {:width "100%" :border "1px solid #ccc"}
-    [:tbody
-     [:tr.center {:width "50%" :height "35px"}
-      [:td {:width "70%"} [:h3 [:b [:em "Report: "]]]]
-      [:td [:h3 [:b [:em "Visual: "]]]]]
+(defn report-component
+  "Displays generational reports in <text> format 
+   (Same as whne run on the terminal)"
+  []
+  [:table.vis [:tbody
+               [:tr.header [:td [:h3 "Textual Report"]]]
+               [:tr [:td [:div.scroll-container
+                          [output-result]
+                          [output-report]]]]]])
+
+(defn population-component
+  "Visualizes the first INSERT genomes/plushies of the population with
+   the genes as color-coded segments"
+  []
+  [:table.vis [:tbody
+               [:tr.header [:td [:h3 "Population"]]]
      [:tr
       [:td [:div.scroll-container
-            [output-result]
-            [output-report]]]
-      [:td [:h4 "COMING SOON"]]]]]])
+                      [visualize-genomes]]]]]])
+
+(defn push-component
+  "Generates and updates plots as evolution progresses with each generation"
+  []
+  [:table.vis [:tbody
+               [:tr.header [:td
+                            [:h3 "Push Program Interpreter"]]]
+               [:tr [:td "COMING SOON"]]]])
 
 (defn footer-component []
   [:div.footer
@@ -272,7 +345,10 @@
    [inputs-component]
    [:div.spacer-vertical]
    [buttons-component]
-   [reports-component]
+   [report-component]
+  ;;  [population-component]
+   [plots-component]
+   [push-component]
    [footer-component]])
 
 ;;;;;;;;;;;;;;;;;;;;;;
