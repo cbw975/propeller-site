@@ -21,12 +21,12 @@
 (def padding 40)
 (def duration 100)
 
-(def xscale-max (r/atom 1))
+(def domain-max (r/atom 1))
 (def yscale-max {".scatter__error" 10000
                  ".scatter__diversity" 1
                  ".scatter__length" 50})
 (defn set-maxes [x-val]
-  (reset! xscale-max x-val))
+  (reset! domain-max x-val))
 
 (defn reset-plot-data
   "resets the population data to be plotted"
@@ -66,15 +66,19 @@
   (let [svg (d3/select svg-id)
         data (clj->js state)
         x-scale (-> (d3/scaleLinear)
-                    (.domain #js [0 @xscale-max])
-                    (.range #js [padding (- width padding)]))
+                    (.domain #js [0 (d3/max data (fn [[x _]] x))])
+                    ;; (.domain #js [0 @domain-max])
+                    (.range #js [padding (- width (* padding 2))]))
         y-scale (-> (d3/scaleLinear)
-                    (.domain #js [0 (get yscale-max svg-id)])
+                    ;; (.domain #js [0 (get yscale-max svg-id)])
+                    (.domain #js [0 (d3/max data (fn [[_ y]] y))])
                     (.range #js [(- height padding) padding]))
         x-axis (-> (d3/axisBottom)
-                   (.scale x-scale))
+                   (.scale x-scale)
+                   (.ticks 5))
         y-axis (-> (d3/axisLeft)
-                   (.scale y-scale))
+                   (.scale y-scale)
+                   (.ticks 5))
         points (-> svg
                    (.selectAll "circle")
                    (.data data))
@@ -88,7 +92,17 @@
         (.attr "cx" (fn [[x _]] (x-scale x)))
         (.attr "cy" (fn [[_ y]] (y-scale y)))
         (.attr "r"  5))
-    ;; axes
+    ;; draw the text
+    (-> labels
+        (.enter)
+        (.append "text")
+        (.text (fn [[_ y]] (str (format-decimal y))))
+        (.attr "x" (fn [[x _]] (x-scale x)))
+        ;; (.attr "y" (fn [[_ y]] (- (y-scale y) 5)))
+        (.attr "y" (fn [[_ y]] (y-scale y)))
+        (.attr "font-family" "sans-serif")
+        (.attr "font-size" "11px")
+        (.attr "fill" "red"))
     (-> svg
         (.append "g")
         (.attr "class" "axis")
@@ -98,31 +112,18 @@
         (.append "g")
         (.attr "class" "axis")
         (.attr "transform" (str "translate(" padding ",0)"))
-        (.call y-axis))
-    ;; draw the text
-    (-> labels
-        (.enter)
-        (.append "text")
-        (.attr "x" (fn [[x _]] (x-scale x)))
-        (.attr "y" (fn [[_ y]] (- (y-scale y) 5)))
-        (.text (fn [[_ y]] (str (format-decimal y))))
-        (.attr "font-family" "sans-serif")
-        (.attr "font-size" "11px")
-        (.attr "fill" "red"))))
+        (.call y-axis))))
 
 (defn re-draw-scatter [state svg-id]
   (let [svg (d3/select svg-id)
         data (clj->js state)
         x-scale (-> (d3/scaleLinear)
-                    (.domain #js [0 @xscale-max])
-                    (.range #js [padding (- width padding)]))
+                    ;; (.domain #js [0 @domain-max])
+                    (.domain #js [0 (d3/max data (fn [[x _]] x))])
+                    (.range #js [padding (- width (* padding 2))]))
         y-scale (-> (d3/scaleLinear)
                     (.domain #js [0 (d3/max data (fn [[_ y]] y))])
                     (.range #js [(- height padding) padding]))
-        x-axis (-> (d3/axisBottom)
-                   (.scale x-scale))
-        y-axis (-> (d3/axisLeft)
-                   (.scale y-scale))
         points (-> svg
                    (.selectAll "circle")
                    (.data data))
@@ -135,7 +136,7 @@
         (.append "circle")
         (.attr "cx" (fn [[x _]] (x-scale x)))
         (.attr "cy" (fn [[_ y]] (y-scale y)))
-        (.attr "r"  5)
+        ;; (.attr "r"  5)
         (.merge points)
         (.transition)
         (.duration duration)
@@ -161,7 +162,9 @@
         (.transition)
         (.duration duration)
         (.text (fn [[_ y]] (str (format-decimal y))))
+        (.attr "x" (fn [[x _]] (x-scale x)))
         (.attr "y" (fn [[_ y]] (- (y-scale y) 5)))
+        ;; (.attr "y" (fn [[_ y]] (y-scale y)))
         (.attr "font-family" "sans-serif")
         (.attr "font-size" "11px")
         (.attr "fill" "red"))
@@ -184,10 +187,10 @@
                                                :width width}])})))
 
 (defn scatter-error []
-  [scatter-plot @data-best-total-errors ".scatter__error"])
+  [:div [scatter-plot @data-best-total-errors ".scatter__error"]])
 
 (defn scatter-diversity []
-  [scatter-plot @data-diversities ".scatter__diversity"])
+  [:div [scatter-plot @data-diversities ".scatter__diversity"]])
 
 (defn scatter-length []
-  [scatter-plot @data-genome-lengths ".scatter__length"])
+  [:div [scatter-plot @data-genome-lengths ".scatter__length"]])

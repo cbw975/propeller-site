@@ -135,7 +135,8 @@ div.spacer-vertical {
 }
 
 table {
-  border-collapse: collapse;  
+  border-collapse: collapse;
+  width: 100%;
 }
 
 table.vis {

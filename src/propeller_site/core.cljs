@@ -39,7 +39,7 @@
                 :population-size 1
                 :max-initial-plushy-size 1
                 :step-limit 1
-                :tournament-size @population-size})
+                :tournament-size 1})
 
 ;;;;;;;;;;;;;;;;;;;;;;
 ;;  VISUALIZATIONS  ;;
@@ -75,11 +75,13 @@
 ;;  GP FUNCTION(S)  ;;
 ;;;;;;;;;;;;;;;;;;;;;;
 
-(defn report-start []
-  (swap! reports conj (str "....................................."))
-  (swap! reports conj (str @error-function " errror function for " @generations " generations with " @population-size " population size."))
-  (swap! reports conj (str "Running Propeller GP!"))
-  (swap! reports conj (str ".....................................")))
+(defn report-start [argmap]
+  (swap! reports conj (str "***************************"))
+  (swap! reports conj (str "  ~  Error function:  " @error-function "  for  " (:max-generations argmap) "  generations with  " (:population-size argmap) "  individuals"))
+  (swap! reports conj (str "  ~  Max Initial Plushy Size of  " (:max-initial-plushy-size argmap) "  with a step limit of  " (:step-limit argmap)))
+  (swap! reports conj (str "  ~  Parent Selection via  " (:parent-selection argmap) "  with tournament size of  " (:tournament-size argmap)))
+  (swap! reports conj (str "RUNNING PROPELLER GP!"))
+  (swap! reports conj (str " ***************************")))
 
 (defn make-population [instr mips]
   (repeatedly (int @population-size)
@@ -145,9 +147,9 @@
    :tournament-size (param-change :tournament-size (int @tournament-size))})
 
 (defn beginning [argmap]
-  (report-start)
-  (scatter/set-maxes @generations)
-  (assoc scatter/yscale-max ".scatter__length" @max-initial-plushy-size)
+  (report-start argmap)
+  (scatter/set-maxes (:max-generations argmap))
+  (assoc scatter/yscale-max ".scatter__length" (:max-initial-plushy-size argmap))
   (reset! gp-pop (make-population (:instructions argmap)
                                   (:max-initial-plushy-size argmap))))
 (defn step-evolve []
@@ -263,15 +265,14 @@
 
 (defn inputs-component []
   [:div
-   [:table {:width "100%"}
-    [:tbody
-     [:tr [:td "Error function = " [error-function-input]] [:td "the evaluation of performance with a behavior"]]
-     [:tr [:td "Max generations = " [generations-input]] [:td "the number of generations for which it will run evolution"]]
-     [:tr [:td "Population size = " [population-size-input]] [:td "the number of individuals in the population"]]
-     [:tr [:td "Max initial plushy size = " [max-initial-plushy-size-input]] [:td "the limit on how large the program plushy/genome can become"]]
-     [:tr [:td "Step limit = " [step-limit-input]] [:td "the limit on how long steps, i.e. due to loop structures, may go"]]
-     [:tr [:td "Parent selection = " [parent-selection-input]] [:td "the process/method by which individuals/programs are chosen to reproduce"]]
-     [:tr [:td "Tournament size = " [tournament-size-input]] [:td "the number of individuals per tournament bracket"]]]]])
+   [:table [:tbody
+            [:tr [:td "Error function = " [error-function-input]] [:td "the evaluation of performance with a behavior"]]
+            [:tr [:td "Max generations = " [generations-input]] [:td "the number of generations for which it will run evolution"]]
+            [:tr [:td "Population size = " [population-size-input]] [:td "the number of individuals in the population"]]
+            [:tr [:td "Max initial plushy size = " [max-initial-plushy-size-input]] [:td "the limit on how large the program plushy/genome can become"]]
+            [:tr [:td "Step limit = " [step-limit-input]] [:td "the limit on how long steps, i.e. due to loop structures, may go"]]
+            [:tr [:td "Parent selection = " [parent-selection-input]] [:td "the process/method by which individuals/programs are chosen to reproduce"]]
+            [:tr [:td "Tournament size = " [tournament-size-input]] [:td "the number of individuals per tournament bracket"]]]]])
 
 (defn plots-component
   "Generates and updates plots as evolution progresses with each generation"
@@ -295,7 +296,7 @@
 
 (defn buttons-component []
   [:div
-   [:table.center {:width "100%" :height "35px"}
+   [:table.center {:height "35px"}
     [:tbody
      [:tr
       [:td [run-button] [:spacer-button]]
