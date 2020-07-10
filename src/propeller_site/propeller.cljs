@@ -447,7 +447,7 @@
   (fn [stack state]
     (make-instruction state
                       #(try ((if (= stack :integer) int float) (js/Number %))
-                            (catch Exception e))
+                            (catch js/Error e))
                       [:string]
                       stack)))
 

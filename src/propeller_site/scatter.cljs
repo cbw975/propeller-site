@@ -19,7 +19,7 @@
 (def height 250)
 (def width 500)
 (def padding 40)
-(def duration 100)
+(def duration 50)
 
 (def domain-max (r/atom 1))
 (def yscale-max {".scatter__error" 10000

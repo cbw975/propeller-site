@@ -70,7 +70,6 @@ input, select {
   color: #ffffff;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #697637;
-  text-align: center;
   margin-top: -10px;
   margin-bottom: -10px;
 }
@@ -142,14 +141,15 @@ table {
 table.vis {
   width: 100%;
   border: 1px solid #000000;
+  text-align: center;
 }
 
 tr.header {
   background: #B5C581;
 }
 
-td {
-  text-align: center;
+td.parameter {
+  padding-left: 20px;
 }
 
 canvas {
