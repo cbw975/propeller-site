@@ -9,9 +9,18 @@
 ;;  STYLES & PARAMETERS  ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(def param-input-style {:border "#555555" :font-size "15px" :height "15px" :line-height "1px" :width "60px"})
-(def evolve-button-style {:width "100px" :color "#ccff00" :font-size "20px"})
-(def disabled-style {:width "100px" :color "#666666" :font-size "20px" :border "#999999" :background-color "#cccccc"})
+(def param-input-style {:border "#555555"
+                        :font-size "15px"
+                        :height "15px"
+                        :line-height "1px"
+                        :width "60px"})
+(def evolve-button-style {:width "100px"
+                          :color "#ccff00" :font-size "20px"})
+(def disabled-style {:width "100px"
+                     :color "#666666"
+                     :font-size "20px"
+                     :border "#999999"
+                     :background-color "#cccccc"})
 
 (def reports (r/atom []))
 (def result (r/atom []))
@@ -365,10 +374,12 @@
    (Same as whne run on the terminal)"
   []
   [:table.vis [:tbody
-               [:tr.header [:td [:h3 "Textual Report"]]]
-               [:tr [:td [:div.scroll-container
-                          [output-result]
-                          [output-report]]]]]])
+               [:tr.header
+                [:td [:h3 "Textual Report"]]]
+               [:tr
+                [:td [:div.scroll-container
+                      [output-result]
+                      [output-report]]]]]])
 
 (defn population-component
   "Visualizes the first INSERT genomes/plushies of the population with
@@ -384,9 +395,11 @@
   "Generates and updates plots as evolution progresses with each generation"
   []
   [:table.vis [:tbody
-               [:tr.header [:td
-                            [:h3 "Push Program Interpreter"]]]
-               [:tr [:td "COMING SOON"]]]])
+               [:tr.header
+                [:td
+                 [:h3 "Push Program Interpreter"]]]
+               [:tr
+                [:td "COMING SOON"]]]])
 
 (defn footer-component []
   [:div.footer
