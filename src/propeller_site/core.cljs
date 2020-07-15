@@ -2,6 +2,8 @@
   (:require
    [reagent.core :as r]
    [reagent.dom :as d]
+   [quil.core :as q :include-macros true]
+   [quil.middleware :as m]
    [propeller-site.propeller :as propel]
    [propeller-site.scatter :as scatter]))
 
@@ -56,13 +58,95 @@
                 :max-initial-plushy-size 1
                 :step-limit 1
                 :tournament-size 1
-                :umad-rate 0
-                :umad 0
-                :crossover 0})
+                :umad-rate (double 0)
+                :umad (double 0)
+                :crossover (double 0)})
 
 ;;;;;;;;;;;;;;;;;;;;;;
-;;  VISUALIZATIONS  ;;
+;;  GENOME VISUALS  ;;
 ;;;;;;;;;;;;;;;;;;;;;;
+
+(def gDisplayed? (r/atom false))
+(def glength 1000)              ; length for genome visual
+(def gheight 50)                ; height for genome visual
+(def gene-colors (r/atom {}))   ; gene (push instruction) color (visual representation) map
+(def genomes (r/atom []))       ; genomes that are being displayed
+(def index (r/atom 0))          ; genome visualization we are displaying
+
+(def test-genome '("" "A" "A" :string_drop false :boolean_and :boolean_and 0))
+
+(defn update-gene-map
+  "Returns the gene (push instruction) color (visual representation) map
+  for a coll of given plushies/genomes"
+  [coll-of-plushies]
+  (let [genes (distinct (reduce concat coll-of-plushies)) ; instructions/genes that could display
+        count (count genes)
+        get-color (fn []
+                    (into [] (take 3 (repeatedly #(rand-int 256)))))
+        colors (into [] (take count (repeatedly #(get-color))))]
+    ; TODO: Change get-color to be generate more distinctive colors based on which stack, etc
+
+
+
+    (reset! gDisplayed? true)
+
+
+
+
+    (reset! gene-colors (zipmap genes colors))
+    (reset! genomes [])))    ; Assign RGB values (colors) to genes in gene-colors map
+
+(defn get-genome-colors
+  "Converts a genome of instructions to vector of colors. Each gene replaced with its color (RGB values)"
+  [genome]
+  (into [] (map #(get @gene-colors %) genome)))
+
+(defn setup []
+  (q/frame-rate 30)       ; FPS
+  (q/color-mode :hsb)     ; HSB (HSV) rather than default RGB
+  {:color 0 :angle 0 :gene-count 0})    ; setup returns initial state, containing the circle color and position
+
+(defn update-state
+  "Update the sketch state by changing the (current) gene color and position"
+  [state]
+  (if @gDisplayed?
+    state
+    (let [curr-genome (get @genomes @index)
+          n-genes (count curr-genome)
+          gene-width (/ glength n-genes)]            ; to convert bin index to pixel offset in the x-dimension
+      (if (= (:gene-count state) n-genes)
+        (do (if (< @index (count @genomes))
+              (swap! index inc)
+              (swap! gDisplayed? not))
+            {:color (nth (get @genomes @index) 0)
+             :pos 0
+             :gene-count 0})
+        {:color (nth curr-genome (:gene-count state))
+         :pos (* (:gene-count state) gene-width)
+         :gene-count (inc (:gene-count state))}))))
+
+(defn draw-state
+  "(Quil) Sketch a genome (rectangular row) of color-coded genes."
+  [state]
+  (q/background 240)      ; Clear the sketch by filling it with light-grey color.   
+  (q/fill (:color state) 255 255) ; Set circle color.
+  (let [curr-genome (get @genomes @index)
+        n-genes (count curr-genome)
+        gene-width (/ glength n-genes)             ; to convert bin index to pixel offset in the x-dimension
+        x-pos (* (:gene-count state) gene-width)]
+    (q/rect x-pos 0 gene-width gheight)))
+
+(q/defsketch display-genomes
+  :host "display-genomes"
+  :size [glength gheight]
+  :setup setup            ; setup function called only once, during sketch initialization
+  :update update-state    ; update-state is called on each iteration before draw-state
+  :draw draw-state
+  :middleware [m/fun-mode])
+
+;;;;;;;;;;;;;;;;;;;;
+;;  PLOT VISUALS  ;;
+;;;;;;;;;;;;;;;;;;;;
 
 (def curr-best-program (r/atom []))
 (def curr-best-errors (r/atom []))
@@ -86,10 +170,6 @@
      :best-plushy best-plushy
      :best-errors best-errors}))
 
-(defn get-genomes [pop])
-
-(defn visualize-genomes [])
-
 ;;;;;;;;;;;;;;;;;;;;;;
 ;;  GP FUNCTION(S)  ;;
 ;;;;;;;;;;;;;;;;;;;;;;
@@ -105,12 +185,12 @@
 
 (defn make-population [instr mips]
   (repeatedly (int @population-size)
-              #(hash-map :plushy 
+              #(hash-map :plushy
                          (propel/make-random-plushy instr mips))))
 
 (defn evaluate-pop [argmap]
   (map (partial (:error-function argmap) argmap)
-                             @gp-pop))
+       @gp-pop))
 
 (defn sort-pop
   "Returns the curent population of items sorted by their :total-error's"
@@ -125,18 +205,18 @@
   (let [evaluated-pop (sort-pop argmap)
         curr-best (first evaluated-pop)]
     (swap! reports conj (propel/report evaluated-pop (int @gp-gen)))
-    (if (or (< (:total-error curr-best) 0.1) 
+    (if (or (< (:total-error curr-best) 0.1)
             (>= (int @gp-gen) max-generations))
       (do (get-generation-data evaluated-pop @gp-gen)
           ; (get-genomes evaluated-pop)
           (swap! result conj "Ended")
-          (swap! result conj (str "Best genome: " (:plushy curr-best) 
+          (swap! result conj (str "Best genome: " (:plushy curr-best)
                                   ", Total error: " (int (:total-error curr-best)))))
       (do (get-generation-data evaluated-pop @gp-gen)
           ; (get-genomes evaluated-pop)
           (reset! gp-pop (repeatedly population-size
                                      #(propel/new-individual evaluated-pop argmap)))
-          (swap! gp-gen inc))))) 
+          (swap! gp-gen inc)))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;;  USER CONTROLS  ;;
@@ -147,25 +227,12 @@
 (defn param-change
   "Returns the parameter (<str> name) value <int> inputted, corrected if out-of-bounds or casted if non-int"
   [param-name param-value]
-  (cond (< (int param-value) (get param-min param-name))
-        (int (get param-min param-name))
-
-        (> (int param-value) (get param-max param-name))
-        (int (get param-max param-name))
-
+  (cond (< param-value (get param-min param-name))
+        (get param-min param-name)
+        (> param-value (get param-max param-name))
+        (get param-max param-name)
         :else
-        (int param-value)))
-
-(defn param-change-d
-  [param-name param-value]
-  (cond (< (double param-value) (get param-min param-name))
-        (double (get param-min param-name))
-
-        (> (double param-value) (get param-max param-name))
-        (double (get param-max param-name))
-
-        :else
-        (double param-value)))
+        param-value))
 
 (defn get-argmap []
   {:instructions propel/default-instructions
@@ -176,9 +243,9 @@
    :step-limit (param-change :step-limit (int @step-limit))
    :parent-selection (keyword @parent-selection)
    :tournament-size (param-change :tournament-size (int @tournament-size))
-   :umad-rate (param-change-d :umad-rate (double @umad-rate))
-   :variation {:umad (param-change-d :umad (double @umad))
-               :crossover (param-change-d :crossover (double @crossover))}
+   :umad-rate (param-change :umad-rate (double @umad-rate))
+   :variation {:umad (param-change :umad (double @umad))
+               :crossover (param-change :crossover (double @crossover))}
    :elitism (boolean @elitism)})
 
 (defn beginning [argmap]
@@ -187,6 +254,7 @@
   (assoc scatter/yscale-max ".scatter__length" (:max-initial-plushy-size argmap))
   (reset! gp-pop (make-population (:instructions argmap)
                                   (:max-initial-plushy-size argmap))))
+
 (defn step-evolve []
   (let [argmap (get-argmap)]
     (if (= (int @gp-gen) 0)
@@ -200,7 +268,7 @@
 (defn run-evolve []
   (let [argmap (get-argmap)]
     (if (= (int @gp-gen) 0)
-            (beginning argmap))
+      (beginning argmap))
     (propel-gp argmap)
     (if (or (< (:total-error (first (sort-pop argmap))) 0.1)
             (>= (int @gp-gen) (:max-generations argmap)))
@@ -210,8 +278,6 @@
 
 (defn stop-evolve []
   (.cancelAnimationFrame js/window @anFrame))
-
-(defn visualize-evolve [])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;  COMPONENT BUILDING  ;;
@@ -313,11 +379,6 @@
                           (scatter/reset-plot-data)
                           (stop-evolve))}])
 
-(defn visualize-button []
-  [:input {:type "button" :value "Visualize" :disabled (false? @evolved?)
-           :style (if @evolved? evolve-button-style disabled-style)
-           :on-click #(visualize-evolve)}])
-
 ;;;;;;;;;;;;;
 ;;  Views  ;;
 ;;;;;;;;;;;;;
@@ -343,8 +404,7 @@
   [:table.vis [:tbody
                [:tr.header
                 [:td {:colSpan 2}
-                 [:h3 "Plots"] 
-                 ]]
+                 [:h3 "Plots"]]]
                [:tr
                 [:td
                  [:h4 "Best Total Error vs Generation"]
@@ -365,9 +425,7 @@
       [:td [run-button] [:spacer-button]]
       [:td [pause-button] [:spacer-button]]
       [:td [step-button] [:spacer-button]]
-      [:td [reset-button] [:spacer-button]]
-      ; [:td [visualize-button] [:spacer-button]]
-      ]]]])
+      [:td [reset-button] [:spacer-button]]]]]])
 
 (defn report-component
   "Displays generational reports in <text> format 
@@ -387,9 +445,11 @@
   []
   [:table.vis [:tbody
                [:tr.header [:td [:h3 "Population"]]]
-     [:tr
-      [:td [:div.scroll-container
-                      [visualize-genomes]]]]]])
+               [:tr
+                [:td [:div
+                      [:canvas#display-genomes]
+            ;; [:canvas#display-genomes]
+                      ]]]]])
 
 (defn push-component
   "Generates and updates plots as evolution progresses with each generation"
@@ -414,7 +474,7 @@
    [:div.spacer-vertical]
    [buttons-component]
    [report-component]
-  ;;  [population-component]
+   [population-component]
    [plots-component]
    [push-component]
    [footer-component]])
